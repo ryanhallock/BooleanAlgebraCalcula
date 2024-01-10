@@ -1,4 +1,4 @@
-### This is a cool Boolean Expresion Calculator
+# Boolean Algebra Expression Evaluator
 ## Created by Ryan Hallock and Rohan Natarajan
 
 The calculator accepts an arbitrarily long Boolean expression and outputs the truth table for the expression.
