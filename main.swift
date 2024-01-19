@@ -23,6 +23,7 @@ var symbolDictionary : [String : Character] = [
   "or" : "∨",
   "xor" : "⊕",
   "imply" : "→",
+  "implies" : "→",
   "equals" : "=",
   "notequals" : "≠",
   "true": "⊤",
@@ -87,6 +88,40 @@ func checkBalance(_ string: String) throws {
     }
 }
 
+func parseUngrouped(formula string: String) -> [Range<Int>] {
+    var returnRange: [Range<Int>] = []
+
+    var grouping = 0
+    var currentRange: Range<Int>? = nil
+    for index in (0 ..< string.count) {
+        guard let character = string.getCharacterAt(index) else {
+                fatalError("No character at \(index)")
+        }
+
+        switch character {
+        case ")":
+            grouping -= 1
+        case "(":
+            if let range = currentRange, grouping == 0 {
+                returnRange.append(range.lowerBound ..< index)
+                currentRange = nil
+            }
+
+            grouping += 1
+        default:
+            if grouping == 0 && currentRange == nil {
+                currentRange = (index ..< string.count)
+            }
+        }
+    }
+
+    if let currentRange = currentRange { // Swift should auto-unwrap nils if checked.
+        returnRange.append(currentRange)
+    }
+
+    return returnRange
+}
+
 func parse(_ formula: String) throws -> BoolOperation {
 
     func createNode(_ string: inout String) throws -> BoolOperation {
@@ -97,80 +132,65 @@ func parse(_ formula: String) throws -> BoolOperation {
         if (trimmedString.canBeUngrouped()) {
             let stringCpy = string
             string = trimmedString.slice(from: 1, to: trimmedString.count - 1)
+            print(string)
 
-            do { try checkBalance(string); return try createNode(&string) } catch {
+            do {
+                try checkBalance(string)
+                return try createNode(&string)
+            } catch {
                 string = stringCpy
             }
         }
 
-        var grouping = 0
-        var ungroupedStartingIndex = 0
-
-        for index in (0 ..< string.count) {
-            guard let character = string.getCharacterAt(index) else {
-                fatalError("No character at \(index)")
-            }
-
-            if character == ")" {
-                grouping -= 1
-            }
-            if character == "(" {
-                grouping += 1
-            }
-
-            if grouping != 0 || character == " " {
-                continue
-            }
-
-            ungroupedStartingIndex = index
-
-            break
-        }
+        let ungroupedRanges = parseUngrouped(formula: string)
 
         for (functionCharacter, function, _) in doubleArgScan {
-            for index in (ungroupedStartingIndex ..< string.count) {
-                guard let character = string.getCharacterAt(index) else {
-                    fatalError("No character at \(index)")
+            for range in ungroupedRanges {
+                for index in range {
+                    guard let character = string.getCharacterAt(index) else {
+                        fatalError("No character at \(index)")
+                    }
+
+                    if character != functionCharacter {
+                        continue
+                    }
+
+                    var leftSlice = string.slice(from: 0, to: index - 1)
+
+                    var rightSlice = string.slice(from: index + 1, to: string.count)
+
+                    guard let leftNode = try? createNode(&leftSlice) else {
+                        fatalError("\(functionCharacter) is missing argument #1")
+                    }
+
+                    guard let rightNode = try? createNode(&rightSlice) else {
+                        fatalError("\(functionCharacter) is missing argument #2")
+                    }
+
+                    return function(leftNode, rightNode)
                 }
-
-                if character != functionCharacter {
-                    continue
-                }
-
-                var leftSlice = string.slice(from: 0, to: index - 1)
-
-                var rightSlice = string.slice(from: index + 1, to: string.count)
-
-                guard let leftNode = try? createNode(&leftSlice) else {
-                    fatalError("\(functionCharacter) is missing argument #1")
-                }
-
-                guard let rightNode = try? createNode(&rightSlice) else {
-                    fatalError("\(functionCharacter) is missing argument #2")
-                }
-
-                return function(leftNode, rightNode)
             }
         }
 
         // TODO: remove some repition
+        for range in ungroupedRanges {
+            for index in range {
+                guard let character = string.getCharacterAt(index) else {
+                    fatalError("No character at \(index)")
+                }
 
-        for index in (ungroupedStartingIndex ..< string.count) {
-            guard let character = string.getCharacterAt(index) else {
-                fatalError("No character at \(index)")
+                if character != "¬" {
+                    continue
+                }
+
+                var rightSlice = string.slice(from: index + 1, to: string.count)
+
+                guard let rightNode = try? createNode(&rightSlice) else {
+                    fatalError("¬ is missing argument #1 `\(rightSlice)`")
+                }
+
+                return .not(rightNode)
             }
-
-            if character != "¬" {
-                continue
-            }
-
-            var rightSlice = string.slice(from: index + 1, to: string.count)
-
-            guard let rightNode = try? createNode(&rightSlice) else {
-                fatalError("¬ is missing argument #1 `\(rightSlice)`")
-            }
-
-            return .not(rightNode)
         }
 
         if trimmedString.count == 1, let character = trimmedString.first  {
@@ -249,7 +269,7 @@ while var input = readLine() {
     }
 
     let parsedFormula = try parse(input)
-    dump(parsedFormula)
+
     let characterVaraibles = findVariables(operations: parsedFormula)
 
     let outputRowCount = Int(pow(2, Double(characterVaraibles.count))) // workaround because swift lacks a basic pow function
