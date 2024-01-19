@@ -183,20 +183,63 @@ func parse(_ formula: String) throws -> BoolOperation {
     return try createNode(&copy)
 }
 
+func findVariables(operations: BoolOperation) -> [(Character, Bool)] {
+    var variables = [(Character, Bool)]()
+    
+    func explore(operations: BoolOperation) {
+        switch operations {
+        case .value, .not:
+            break // Do nothing for leaf nodes or not operations
+        case .variable(let variable):
+            variables.append((variable, false))
+        case .and(let lhs, let rhs),
+             .or(let lhs, let rhs),
+             .xor(let lhs, let rhs),
+             .implies(let lhs, let rhs),
+             .equals(let lhs, let rhs),
+             .notEquals(let lhs, let rhs):
+            explore(operations: lhs)
+            explore(operations: rhs)
+        }
+    }
+    explore(operations: operations)
+    return variables
+}
+
+func compute(operations: BoolOperation, variables: [Character: Bool]) -> Bool {
+    switch operations {
+    case .value(let value):
+        return value
+    case .variable(let variable):
+        return variables[variable] ?? false
+    case .not(let operand):
+        return !compute(operations: operand, variables: variables)
+    case .and(let lhs, let rhs):
+        return compute(operations: lhs, variables: variables) && compute(operations: rhs, variables: variables)
+    case .or(let lhs, let rhs):
+        return compute(operations: lhs, variables: variables) || compute(operations: rhs, variables: variables)
+    case .xor(let lhs, let rhs):
+        return compute(operations: lhs, variables: variables) != compute(operations: rhs, variables: variables)
+    case .implies(let lhs, let rhs):
+        return !compute(operations: lhs, variables: variables) || compute(operations: rhs, variables: variables)
+    case .equals(let lhs, let rhs):
+        return compute(operations: lhs, variables: variables) == compute(operations: rhs, variables: variables)
+    case .notEquals(let lhs, let rhs):
+        return compute(operations: lhs, variables: variables) != compute(operations: rhs, variables: variables)
+    }
+}
+
 while var input = readLine() {
     for (key, value) in symbolDictionary {
         input = input.replacing(key, with: "\(value)")
     }
 
-    print(try parse(input))
+    let parsedFormula = try parse(input)
+    let variables = findVariables(operations: parsedFormula)
+
+    print(compute(operations: parsedFormula, variables: [:]))
+    
 }
-
-/*
-func compute(operations: BoolOperation, variables: [Character: Bool]) -> Bool {
-
-}
- */
-
 
 extension Character {
     func isGrouping() -> Bool {
