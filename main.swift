@@ -1,3 +1,5 @@
+import Foundation
+
 indirect enum BoolOperation {
     case value(Bool)
 
@@ -23,8 +25,8 @@ var symbolDictionary : [String : Character] = [
   "imply" : "→",
   "equals" : "=",
   "notequals" : "≠",
-  "true": "T",
-  "false": "F"
+  "true": "⊤",
+  "false": "⊥",
 ]
 
 
@@ -94,7 +96,7 @@ func parse(_ formula: String) throws -> BoolOperation {
 
         if (trimmedString.canBeUngrouped()) {
             let stringCpy = string
-            string = trimmedString.slice(from: 1, through: trimmedString.count - 1)
+            string = trimmedString.slice(from: 1, to: trimmedString.count - 1)
 
             do { try checkBalance(string); return try createNode(&string) } catch {
                 string = stringCpy
@@ -135,9 +137,9 @@ func parse(_ formula: String) throws -> BoolOperation {
                     continue
                 }
 
-                var leftSlice = string.slice(from: 0, through: index - 1)
+                var leftSlice = string.slice(from: 0, to: index - 1)
 
-                var rightSlice = string.slice(from: index + 1, through: string.count)
+                var rightSlice = string.slice(from: index + 1, to: string.count)
 
                 guard let leftNode = try? createNode(&leftSlice) else {
                     fatalError("\(functionCharacter) is missing argument #1")
@@ -162,7 +164,7 @@ func parse(_ formula: String) throws -> BoolOperation {
                 continue
             }
 
-            var rightSlice = string.slice(from: index + 1, through: string.count)
+            var rightSlice = string.slice(from: index + 1, to: string.count)
 
             guard let rightNode = try? createNode(&rightSlice) else {
                 fatalError("¬ is missing argument #1 `\(rightSlice)`")
@@ -171,8 +173,15 @@ func parse(_ formula: String) throws -> BoolOperation {
             return .not(rightNode)
         }
 
-        if trimmedString.count == 1, let character = trimmedString.first  { // TODO: impl T/F
-            return .variable(character)
+        if trimmedString.count == 1, let character = trimmedString.first  {
+            switch character {
+            case "⊤":
+                return .value(true)
+            case "⊥":
+                return .value(false)
+            default:
+                return .variable(character)
+            }
         }
 
         fatalError("Failed to create node with `\(string)`")
@@ -183,15 +192,17 @@ func parse(_ formula: String) throws -> BoolOperation {
     return try createNode(&copy)
 }
 
-func findVariables(operations: BoolOperation) -> [(Character, Bool)] {
-    var variables = [(Character, Bool)]()
+func findVariables(operations: BoolOperation) -> [Character] {
+    var variables: [Character] = []
     
     func explore(operations: BoolOperation) {
         switch operations {
-        case .value, .not:
-            break // Do nothing for leaf nodes or not operations
+        case .value:
+            break // Do nothing for leaf nodes
         case .variable(let variable):
-            variables.append((variable, false))
+            variables.append(variable)
+        case .not(let rhs):
+            explore(operations: rhs)
         case .and(let lhs, let rhs),
              .or(let lhs, let rhs),
              .xor(let lhs, let rhs),
@@ -211,7 +222,10 @@ func compute(operations: BoolOperation, variables: [Character: Bool]) -> Bool {
     case .value(let value):
         return value
     case .variable(let variable):
-        return variables[variable] ?? false
+        guard let value = variables[variable] else {
+            fatalError("Variable \(variable) does not have a value.")
+        }
+        return value
     case .not(let operand):
         return !compute(operations: operand, variables: variables)
     case .and(let lhs, let rhs):
@@ -235,10 +249,63 @@ while var input = readLine() {
     }
 
     let parsedFormula = try parse(input)
-    let variables = findVariables(operations: parsedFormula)
+    dump(parsedFormula)
+    let characterVaraibles = findVariables(operations: parsedFormula)
 
-    print(compute(operations: parsedFormula, variables: [:]))
-    
+    let outputRowCount = Int(pow(2, Double(characterVaraibles.count))) // workaround because swift lacks a basic pow function
+
+    var rows: [RowData] = []
+
+    for rowValue in (0..<outputRowCount) {
+        var variables: [Character: Bool] = [:]
+
+        for variableIndex in (0..<characterVaraibles.count) {
+            let variable = characterVaraibles[variableIndex]
+            let value = (rowValue & (1 << variableIndex)) != 0
+
+            variables[variable] = value
+        }
+
+        let finalValue = compute(operations: parsedFormula, variables: variables)
+
+        rows.append((variables, finalValue))
+    }
+
+    printPrettyTable(formula: input, variables: characterVaraibles, rows: rows)
+}
+
+// Row stores variable truth/false and the result after the function is run.
+typealias RowData = ([Character: Bool], Bool)
+
+//Gpted
+func printPrettyTable(formula: String, variables: [Character], rows: [RowData]) {
+    // Print table header
+    print("｜ ", terminator: "")
+    for variable in variables {
+        print("\(variable) ｜ ", terminator: "")
+    }
+    print("\(formula) ｜")
+
+    // Print table separator
+    let separatorLength = (variables.count * 5) + (formula.count) + 5
+    print(String(repeating: "-", count: separatorLength))
+
+    // Print table rows
+    for (variablesValues, value) in rows {
+        print("｜", terminator: "")
+        for variable in variables {
+            guard let value = variablesValues[variable] else {
+                fatalError("Missing variable \(variable) in output")
+            }
+            print(" \(value ? "T" : "F") ｜", terminator: "")
+        }
+
+        let result = value ? "T" : "F"
+        let padding = (formula.count - 1) / 2  // Adjust padding for centering
+        print(" \(String(repeating: " ", count: padding))\(result)\(String(repeating: " ", count: padding)) ｜")
+    }
+
+    print(String(repeating: "-", count: separatorLength))
 }
 
 extension Character {
@@ -275,7 +342,7 @@ extension String {
             }
         }
 
-        return slice(from: nonWhitespaceStart ?? 0, through: nonWhitespaceEnd ?? self.count)
+        return slice(from: nonWhitespaceStart ?? 0, to: nonWhitespaceEnd ?? self.count)
     }
 
     func getCharacterAt(_ characterIndex: Int) -> Character? {
@@ -286,12 +353,12 @@ extension String {
         return self[self.index(self.startIndex, offsetBy: characterIndex)]
     }
 
-    func slice(from: Int, through: Int) -> String {
-        precondition(from < through, "Slice cannot create empty strings.")
-        precondition(through <= self.count, "Through out of bounds for String slice.")
+    func slice(from: Int, to: Int) -> String {
+        precondition(from < to, "Slice cannot create empty strings.")
+        precondition(to <= self.count, "Through out of bounds for String slice.")
 
         let startIndex = self.index(self.startIndex, offsetBy: from)
-        let endIndex = self.index(self.startIndex, offsetBy: through)
+        let endIndex = self.index(self.startIndex, offsetBy: to)
 
         return String(self[startIndex ..< endIndex])
     }
