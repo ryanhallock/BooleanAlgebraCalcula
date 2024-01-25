@@ -3,7 +3,7 @@ import Foundation
 indirect enum BoolOperation {
     case value(Bool)
 
-    case variable(Character)
+    case variable(String)
 
     //1st
     case not(BoolOperation) // one arg
@@ -192,18 +192,18 @@ func parse(_ formula: String) throws -> BoolOperation {
             }
         }
 
-        if trimmedString.count == 1, let character = trimmedString.first  {
-            switch character {
-            case "⊤":
-                return .value(true)
-            case "⊥":
-                return .value(false)
-            default:
-                return .variable(character)
-            }
+        guard !trimmedString.contains(" ") || (trimmedString.first == "`" && trimmedString.last == "`") else { // Conditions with innerspaces are formatted wrong. but ignore `test alpha`
+            fatalError("Failed to create node with `\(string)`")
         }
 
-        fatalError("Failed to create node with `\(string)`")
+        switch trimmedString {
+        case "⊤":
+            return .value(true)
+        case "⊥":
+            return .value(false)
+        default:
+            return .variable(trimmedString)
+        }
     }
 
     var copy = formula
@@ -211,8 +211,8 @@ func parse(_ formula: String) throws -> BoolOperation {
     return try createNode(&copy)
 }
 
-func findVariables(operations: BoolOperation) -> [Character] {
-    var variables: [Character] = []
+func findVariables(operations: BoolOperation) -> [String] {
+    var variables: [String] = []
     
     func explore(operations: BoolOperation) {
         switch operations {
@@ -236,7 +236,7 @@ func findVariables(operations: BoolOperation) -> [Character] {
     return variables
 }
 
-func compute(operations: BoolOperation, variables: [Character: Bool]) -> Bool {
+func compute(operations: BoolOperation, variables: [String: Bool]) -> Bool {
     switch operations {
     case .value(let value):
         return value
@@ -276,7 +276,7 @@ while var input = readLine() {
     var rows: [RowData] = []
 
     for rowValue in (0..<outputRowCount) {
-        var variables: [Character: Bool] = [:]
+        var variables: [String: Bool] = [:]
 
         for variableIndex in (0..<characterVaraibles.count) {
             let variable = characterVaraibles[variableIndex]
@@ -297,10 +297,10 @@ while var input = readLine() {
 }
 
 // Row stores variable truth/false and the result after the function is run.
-typealias RowData = ([Character: Bool], Bool)
+typealias RowData = ([String: Bool], Bool)
 
 //Gpted
-func printPrettyTable(formula: String, variables: [Character], rows: [RowData]) {
+func printPrettyTable(formula: String, variables: [String], rows: [RowData]) {
     let redPrefix = "\u{001B}[0;31m"
     let greenPrefix = "\u{001B}[0;32m"
     let resetSuffix = "\u{001B}[0;0m"
