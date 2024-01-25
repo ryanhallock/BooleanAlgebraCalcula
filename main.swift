@@ -264,7 +264,7 @@ func compute(operations: BoolOperation, variables: [Character: Bool]) -> Bool {
 
 while var input = readLine() {
     for (key, value) in symbolDictionary {
-        input = input.replacing(key, with: "\(value)")
+        input = input.replacingOccurrences(of: key, with: "\(value)", options: .caseInsensitive)
     }
 
     let parsedFormula = try parse(input)
