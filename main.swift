@@ -132,7 +132,6 @@ func parse(_ formula: String) throws -> BoolOperation {
         if (trimmedString.canBeUngrouped()) {
             let stringCpy = string
             string = trimmedString.slice(from: 1, to: trimmedString.count - 1)
-            print(string)
 
             do {
                 try checkBalance(string)
@@ -281,7 +280,10 @@ while var input = readLine() {
 
         for variableIndex in (0..<characterVaraibles.count) {
             let variable = characterVaraibles[variableIndex]
-            let value = (rowValue & (1 << variableIndex)) != 0
+
+            // Reverse order the default truth table that is made with shifting.
+            let maxIndex = characterVaraibles.count - 1
+            let value = (rowValue & (1 << (maxIndex - variableIndex))) != 0
 
             variables[variable] = value
         }
@@ -299,6 +301,10 @@ typealias RowData = ([Character: Bool], Bool)
 
 //Gpted
 func printPrettyTable(formula: String, variables: [Character], rows: [RowData]) {
+    let redPrefix = "\u{001B}[0;31m"
+    let greenPrefix = "\u{001B}[0;32m"
+    let resetSuffix = "\u{001B}[0;0m"
+
     // Print table header
     print("｜ ", terminator: "")
     for variable in variables {
@@ -317,10 +323,10 @@ func printPrettyTable(formula: String, variables: [Character], rows: [RowData]) 
             guard let value = variablesValues[variable] else {
                 fatalError("Missing variable \(variable) in output")
             }
-            print(" \(value ? "T" : "F") ｜", terminator: "")
+            print(" \(value ? "\(greenPrefix)T\(resetSuffix)" : "\(redPrefix)F\(resetSuffix)") ｜", terminator: "")
         }
 
-        let result = value ? "T" : "F"
+        let result = value ? "\(greenPrefix)T\(resetSuffix)" : "\(redPrefix)F\(resetSuffix)"
         let padding = (formula.count - 1) / 2  // Adjust padding for centering
         print(" \(String(repeating: " ", count: padding))\(result)\(String(repeating: " ", count: padding)) ｜")
     }
